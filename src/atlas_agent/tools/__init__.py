@@ -235,6 +235,12 @@ class ToolRegistry:
         self._tools[name] = ToolDefinition(name=name, description=description, parameters=parameters)
         self._handlers[name] = handler
 
+    def has_tool(self, name: str) -> bool:
+        return name in self._tools
+
+    def list_tools(self) -> List[str]:
+        return list(self._tools.keys())
+
     def get_definitions(self) -> List[ToolDefinition]:
         return list(self._tools.values())
 

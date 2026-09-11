@@ -11,6 +11,7 @@ from atlas_agent.providers.base import (
     BaseProvider, Message, ToolCall, ToolResult, ProviderResponse
 )
 from atlas_agent.providers import create_provider
+from atlas_agent.mcp.manager import MCPManager
 from atlas_agent import ui
 
 class Agent:
@@ -30,6 +31,12 @@ class Agent:
             dry_run=config.dry_run,
             auto_approve=config.auto_approve
         )
+        self.mcp_mgr = MCPManager(guard=self.guard, registry=self.tools)
+        try:
+            self.mcp_mgr.initialize_servers()
+        except Exception:
+            pass
+
         self.context_mgr = ContextManager(
             guard=self.guard,
             max_context_tokens=config.max_tokens * 2
@@ -197,6 +204,11 @@ class Agent:
                 ui.print_info(f"Diretrizes carregadas de: {inst_path.name}")
             else:
                 print(f"{ui.Ansi.DIM}Diretrizes: Nenhum ATLAS.md encontrado (use 'atlas-agent init' para criar){ui.Ansi.RESET}")
+
+        # 3. Check and announce MCP servers
+        if self.mcp_mgr.clients:
+            srv_names = ", ".join(self.mcp_mgr.clients.keys())
+            ui.print_success(f"Servidores MCP ativos: {srv_names} ({len(self.mcp_mgr.registered_tools)} ferramentas extras)")
 
         print(f"{ui.Ansi.DIM}Comandos: 'exit', 'quit' para sair | 'clear' para limpar contexto | Ctrl+C para cancelar.{ui.Ansi.RESET}\n")
 

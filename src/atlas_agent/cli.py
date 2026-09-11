@@ -106,6 +106,15 @@ def cmd_doctor(config: Config) -> int:
             print(f"  Guidelines ...... {ui.Ansi.GREEN}OK{ui.Ansi.RESET} (ATLAS.md detected)")
         else:
             print(f"  Guidelines ...... {ui.Ansi.DIM}None{ui.Ansi.RESET} (run 'atlas-agent init' to create ATLAS.md)")
+
+        # MCP Servers Check
+        from atlas_agent.mcp.manager import MCPManager
+        mcp_mgr = MCPManager(guard=guard, registry=None)
+        mcp_configs = mcp_mgr.load_configs()
+        if mcp_configs:
+            print(f"  MCP Servers ..... {ui.Ansi.GREEN}Configured{ui.Ansi.RESET} ({', '.join(mcp_configs.keys())})")
+        else:
+            print(f"  MCP Servers ..... {ui.Ansi.DIM}None{ui.Ansi.RESET} (Optional: add .mcp.json)")
     except Exception as e:
         print(f"  Workspace ....... {ui.Ansi.RED}ERROR{ui.Ansi.RESET} ({e})")
         all_ok = False
