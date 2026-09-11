@@ -241,3 +241,50 @@ def delete_file(
         return f"Successfully deleted file '{path}'."
     except Exception as e:
         return f"Error deleting file '{path}': {e}"
+
+def copy_file(
+    guard: WorkspaceGuard,
+    source: str,
+    destination: str,
+    dry_run: bool = False
+) -> str:
+    """Copy a file to another location in the workspace."""
+    src_path = guard.validate_path(source)
+    dest_path = guard.validate_path(destination)
+
+    if not src_path.is_file():
+        return f"Error: Source file '{source}' does not exist."
+
+    if dry_run:
+        return f"[DRY RUN] Would copy '{source}' to '{destination}'."
+
+    try:
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
+        dest_path.write_bytes(src_path.read_bytes())
+        return f"Successfully copied '{source}' to '{destination}'."
+    except Exception as e:
+        return f"Error copying '{source}' to '{destination}': {e}"
+
+def move_file(
+    guard: WorkspaceGuard,
+    source: str,
+    destination: str,
+    dry_run: bool = False
+) -> str:
+    """Move or rename a file or directory in the workspace."""
+    src_path = guard.validate_path(source)
+    dest_path = guard.validate_path(destination)
+
+    if not src_path.exists():
+        return f"Error: Source path '{source}' does not exist."
+
+    if dry_run:
+        return f"[DRY RUN] Would move '{source}' to '{destination}'."
+
+    try:
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
+        src_path.rename(dest_path)
+        return f"Successfully moved '{source}' to '{destination}'."
+    except Exception as e:
+        return f"Error moving '{source}' to '{destination}': {e}"
+

@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List
 from atlas_agent.security.policy import WorkspaceGuard, ToolPolicy
-from atlas_agent.tools import filesystem, shell, git
+from atlas_agent.tools import filesystem, shell, git, web
 
 @dataclass
 class ToolDefinition:
@@ -222,6 +222,82 @@ class ToolRegistry:
                 self.guard,
                 message=str(args.get("message")),
                 auto_approve=self.auto_approve
+            )
+        )
+
+        # 12. copy_file
+        self.register(
+            name="copy_file",
+            description="Copy a file to another location in the workspace.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "source": {"type": "string", "description": "Path to source file"},
+                    "destination": {"type": "string", "description": "Path to destination file"}
+                },
+                "required": ["source", "destination"]
+            },
+            handler=lambda args: filesystem.copy_file(
+                self.guard,
+                source=str(args.get("source")),
+                destination=str(args.get("destination")),
+                dry_run=self.dry_run
+            )
+        )
+
+        # 13. move_file
+        self.register(
+            name="move_file",
+            description="Move or rename a file or directory in the workspace.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "source": {"type": "string", "description": "Path to source file/directory"},
+                    "destination": {"type": "string", "description": "Path to destination file/directory"}
+                },
+                "required": ["source", "destination"]
+            },
+            handler=lambda args: filesystem.move_file(
+                self.guard,
+                source=str(args.get("source")),
+                destination=str(args.get("destination")),
+                dry_run=self.dry_run
+            )
+        )
+
+        # 14. duckduckgo_search
+        self.register(
+            name="duckduckgo_search",
+            description="Search the web using DuckDuckGo (privacy-friendly, returns titles, snippets and URLs).",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Search query keywords"},
+                    "max_results": {"type": "integer", "description": "Maximum results to return (default: 5)"}
+                },
+                "required": ["query"]
+            },
+            handler=lambda args: web.duckduckgo_search(
+                query=str(args.get("query")),
+                max_results=int(args.get("max_results", 5))
+            )
+        )
+
+        # 15. fetch_url
+        self.register(
+            name="fetch_url",
+            description="Fetch a web page or API by URL and extract clean text or formatted JSON content.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string", "description": "HTTP or HTTPS URL to fetch"},
+                    "max_chars": {"type": "integer", "description": "Maximum characters to extract (default: 6000)"}
+                },
+                "required": ["url"]
+            },
+            handler=lambda args: web.fetch_url(
+                url=str(args.get("url")),
+                max_chars=int(args.get("max_chars", 6000))
             )
         )
 

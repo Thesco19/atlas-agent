@@ -54,17 +54,21 @@ class MCPManager:
                         if not isinstance(srv, dict):
                             continue
                         cmd = srv.get("command")
-                        if not cmd:
+                        url = srv.get("url") or srv.get("endpoint")
+                        if not cmd and not url:
                             continue
                         args = srv.get("args") or []
                         env = srv.get("env") or {}
                         cwd = srv.get("cwd")
+                        headers = srv.get("headers") or {}
                         configs[name] = MCPServerConfig(
                             name=name,
-                            command=str(cmd),
+                            command=str(cmd) if cmd else None,
                             args=[str(a) for a in args],
                             env={str(k): str(v) for k, v in env.items()},
-                            cwd=str(cwd) if cwd else None
+                            cwd=str(cwd) if cwd else None,
+                            url=str(url) if url else None,
+                            headers={str(k): str(v) for k, v in headers.items()}
                         )
             except Exception:
                 continue

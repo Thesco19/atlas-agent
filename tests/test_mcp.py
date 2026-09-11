@@ -79,5 +79,100 @@ class TestMCPIntegration(unittest.TestCase):
         mgr.shutdown()
         self.assertEqual(len(mgr.clients), 0)
 
+    def test_http_mcp_bridge_connection(self):
+        """Test HTTP MCP bridge connection (simulating remote MCP server like 10.0.1.95:8001)."""
+        import http.server
+        import threading
+
+        class MockMCPHandler(http.server.BaseHTTPRequestHandler):
+            def do_POST(self):
+                content_len = int(self.headers.get("Content-Length", 0))
+                body = self.rfile.read(content_len)
+                data = json.loads(body.decode("utf-8"))
+                method = data.get("method")
+                req_id = data.get("id")
+
+                if method == "initialize":
+                    resp = {
+                        "jsonrpc": "2.0",
+                        "id": req_id,
+                        "result": {
+                            "protocolVersion": "2024-11-05",
+                            "capabilities": {"tools": {}},
+                            "serverInfo": {"name": "remote-bridge-test", "version": "1.0.0"}
+                        }
+                    }
+                elif method == "notifications/initialized":
+                    self.send_response(204)
+                    self.end_headers()
+                    return
+                elif method == "tools/list":
+                    resp = {
+                        "jsonrpc": "2.0",
+                        "id": req_id,
+                        "result": {
+                            "tools": [
+                                {
+                                    "name": "remote_echo",
+                                    "description": "Echoes text from remote server",
+                                    "inputSchema": {
+                                        "type": "object",
+                                        "properties": {"msg": {"type": "string"}},
+                                        "required": ["msg"]
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                elif method == "tools/call":
+                    msg = data.get("params", {}).get("arguments", {}).get("msg", "")
+                    resp = {
+                        "jsonrpc": "2.0",
+                        "id": req_id,
+                        "result": {
+                            "content": [{"type": "text", "text": f"Remote Server Replied: {msg}"}]
+                        }
+                    }
+                else:
+                    resp = {"jsonrpc": "2.0", "id": req_id, "error": {"code": -32601, "message": "Method not found"}}
+
+                resp_bytes = json.dumps(resp).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(resp_bytes)))
+                self.end_headers()
+                self.wfile.write(resp_bytes)
+
+            def log_message(self, format, *args):
+                pass  # Silence test server output
+
+        server = http.server.HTTPServer(("127.0.0.1", 0), MockMCPHandler)
+        port = server.server_address[1]
+        server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+        server_thread.start()
+
+        try:
+            cfg = MCPServerConfig(
+                name="remote_bridge",
+                url=f"http://127.0.0.1:{port}"
+            )
+            client = MCPClient(cfg, workspace_root=self.workspace)
+            connected = client.connect(timeout=3.0)
+            self.assertTrue(connected)
+
+            # Check listed tools
+            self.assertEqual(len(client._tools), 1)
+            self.assertEqual(client._tools[0]["name"], "remote_echo")
+
+            # Call tool
+            call_result = client.call_tool("remote_echo", {"msg": "Ola MCP Bridge!"})
+            self.assertIn("Remote Server Replied: Ola MCP Bridge!", call_result)
+
+            client.close()
+        finally:
+            server.shutdown()
+            server.server_close()
+
+
 if __name__ == "__main__":
     unittest.main()
