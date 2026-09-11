@@ -5,6 +5,7 @@ ensuring 100% compatibility with 32-bit Linux and low-resource CPUs.
 """
 from __future__ import annotations
 import json
+import re
 import ssl
 import time
 import urllib.request
@@ -16,6 +17,82 @@ from atlas_agent.providers.base import (
 from atlas_agent.tools import ToolDefinition
 
 GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta"
+
+def sanitize_gemini_schema(schema: Any) -> Dict[str, Any]:
+    """Sanitize arbitrary JSON Schema into strict Gemini OpenAPI Schema subset.
+    
+    Removes unsupported keys (additionalProperties, $schema, title, default, pattern),
+    normalizes types, and ensures OBJECTs have properties.
+    """
+    if not isinstance(schema, dict):
+        return {"type": "STRING"}
+
+    sanitized: Dict[str, Any] = {}
+
+    # Extract or infer type
+    raw_type = schema.get("type", "OBJECT")
+    if isinstance(raw_type, list):
+        if "null" in raw_type:
+            sanitized["nullable"] = True
+        raw_type = next((t for t in raw_type if t != "null"), "STRING")
+
+    type_str = str(raw_type).upper()
+    if type_str not in ("STRING", "INTEGER", "NUMBER", "BOOLEAN", "ARRAY", "OBJECT"):
+        if "properties" in schema:
+            type_str = "OBJECT"
+        elif "items" in schema:
+            type_str = "ARRAY"
+        else:
+            type_str = "STRING"
+
+    description = schema.get("description")
+    if description and isinstance(description, str):
+        sanitized["description"] = description[:1024]
+
+    if "nullable" in schema:
+        sanitized["nullable"] = bool(schema["nullable"])
+
+    if "enum" in schema and isinstance(schema["enum"], list):
+        sanitized["enum"] = [str(e) for e in schema["enum"]]
+
+    # Handle OBJECT
+    if type_str == "OBJECT":
+        raw_props = schema.get("properties")
+        if isinstance(raw_props, dict) and raw_props:
+            clean_props = {}
+            for k, v in raw_props.items():
+                safe_k = re.sub(r"[^a-zA-Z0-9_]", "_", str(k))
+                clean_props[safe_k] = sanitize_gemini_schema(v)
+            sanitized["type"] = "OBJECT"
+            sanitized["properties"] = clean_props
+
+            if "required" in schema and isinstance(schema["required"], list):
+                req = [re.sub(r"[^a-zA-Z0-9_]", "_", str(r)) for r in schema["required"]]
+                valid_req = [r for r in req if r in clean_props]
+                if valid_req:
+                    sanitized["required"] = valid_req
+        else:
+            # Gemini strictly rejects OBJECT without properties! Represent as STRING
+            sanitized["type"] = "STRING"
+            desc = sanitized.get("description", "")
+            sanitized["description"] = (desc + " (JSON string)").strip()
+
+    # Handle ARRAY
+    elif type_str == "ARRAY":
+        sanitized["type"] = "ARRAY"
+        raw_items = schema.get("items")
+        if isinstance(raw_items, dict):
+            sanitized["items"] = sanitize_gemini_schema(raw_items)
+        elif isinstance(raw_items, list) and raw_items and isinstance(raw_items[0], dict):
+            sanitized["items"] = sanitize_gemini_schema(raw_items[0])
+        else:
+            sanitized["items"] = {"type": "STRING"}
+
+    else:
+        sanitized["type"] = type_str
+
+    return sanitized
+
 
 class GeminiProvider(BaseProvider):
     """Google Gemini LLM provider via native REST API."""
@@ -37,15 +114,26 @@ class GeminiProvider(BaseProvider):
         self.max_tokens = max_tokens
         self.timeout = timeout
         self.max_retries = max_retries
+        self._tool_name_map: Dict[str, str] = {}
+        self._reverse_tool_name_map: Dict[str, str] = {}
 
     def _convert_tools(self, tools: List[ToolDefinition]) -> List[Dict[str, Any]]:
-        """Convert ToolDefinitions to Gemini functionDeclarations schema."""
+        """Convert ToolDefinitions to Gemini functionDeclarations schema with strict sanitization."""
         declarations = []
         for t in tools:
+            # Gemini function name must match ^[a-zA-Z_][a-zA-Z0-9_]*$ and length <= 63
+            safe_name = re.sub(r"[^a-zA-Z0-9_]", "_", t.name)
+            if safe_name and safe_name[0].isdigit():
+                safe_name = f"tool_{safe_name}"
+            safe_name = (safe_name or "unnamed_tool")[:63]
+
+            self._tool_name_map[safe_name] = t.name
+            self._reverse_tool_name_map[t.name] = safe_name
+
             declarations.append({
-                "name": t.name,
-                "description": t.description,
-                "parameters": t.parameters
+                "name": safe_name,
+                "description": (t.description or "Tool function")[:1024],
+                "parameters": sanitize_gemini_schema(t.parameters)
             })
         if not declarations:
             return []
@@ -65,9 +153,10 @@ class GeminiProvider(BaseProvider):
 
             # 2. Tool calls requested by model
             for tc in msg.tool_calls:
+                safe_name = self._reverse_tool_name_map.get(tc.name, tc.name)
                 parts.append({
                     "functionCall": {
-                        "name": tc.name,
+                        "name": safe_name,
                         "args": tc.arguments or {}
                     }
                 })
@@ -77,9 +166,10 @@ class GeminiProvider(BaseProvider):
                 # Gemini expects functionResponse in a 'user' or 'function' role
                 role = "user"
                 for tr in msg.tool_results:
+                    safe_name = self._reverse_tool_name_map.get(tr.name, tr.name)
                     parts.append({
                         "functionResponse": {
-                            "name": tr.name,
+                            "name": safe_name,
                             "response": {
                                 "output": tr.content
                             }
@@ -195,10 +285,11 @@ class GeminiProvider(BaseProvider):
             elif "functionCall" in part:
                 fc = part["functionCall"]
                 name = fc.get("name", "")
+                original_name = self._tool_name_map.get(name, name)
                 args = fc.get("args", {})
                 tool_calls.append(ToolCall(
                     id=f"call_{idx}_{int(time.time())}",
-                    name=name,
+                    name=original_name,
                     arguments=args
                 ))
 
