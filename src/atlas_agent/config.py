@@ -15,11 +15,12 @@ from typing import Optional, Any, Dict
 
 DEFAULT_CONFIG_DIR = Path.home() / ".config" / "atlas-agent"
 DEFAULT_CONFIG_FILE = DEFAULT_CONFIG_DIR / "config.json"
+DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-lite"
 
 @dataclass
 class Config:
     provider: str = "gemini"
-    model: str = "gemini-2.5-flash"
+    model: str = "gemini-3.1-flash-lite"
     api_key: Optional[str] = None
     endpoint: Optional[str] = None
     temperature: float = 0.2
@@ -220,7 +221,7 @@ def prompt_api_key_if_missing(config: Config, interactive: bool = True) -> Confi
     print(f"{ui.Ansi.BOLD}{ui.Ansi.CYAN}│  Nenhuma chave de API detectada para a sessão.              │{ui.Ansi.RESET}")
     print(f"{ui.Ansi.BOLD}{ui.Ansi.CYAN}└─────────────────────────────────────────────────────────────┘{ui.Ansi.RESET}\n")
     print("Escolha o provedor de IA desejado:")
-    print(f"  {ui.Ansi.BOLD}[1]{ui.Ansi.RESET} Google Gemini   {ui.Ansi.DIM}(Recomendado - gemini-2.5-flash, gratuito no AI Studio){ui.Ansi.RESET}")
+    print(f"  {ui.Ansi.BOLD}[1]{ui.Ansi.RESET} Google Gemini   {ui.Ansi.DIM}(Recomendado - gemini-3.1-flash-lite, gratuito no AI Studio){ui.Ansi.RESET}")
     print(f"  {ui.Ansi.BOLD}[2]{ui.Ansi.RESET} OpenRouter      {ui.Ansi.DIM}(openrouter.ai - multi-modelos, Llama, DeepSeek, etc.){ui.Ansi.RESET}")
     print(f"  {ui.Ansi.BOLD}[3]{ui.Ansi.RESET} OpenAI ou outro {ui.Ansi.DIM}(Endpoint compatível ou modelo local){ui.Ansi.RESET}")
     print(f"  {ui.Ansi.BOLD}[4]{ui.Ansi.RESET} Modo Offline    {ui.Ansi.DIM}(Simulação / Mock para testes sem internet){ui.Ansi.RESET}\n")
@@ -234,8 +235,8 @@ def prompt_api_key_if_missing(config: Config, interactive: bool = True) -> Confi
 
         if not choice or choice == "1":
             config.provider = "gemini"
-            if not config.model or config.model == "gpt-4o-mini":
-                config.model = "gemini-2.5-flash"
+            if not config.model or config.model in ("gpt-4o-mini", "gemini-2.5-flash"):
+                config.model = DEFAULT_GEMINI_MODEL
             config.endpoint = None
             print(f"\n{ui.Ansi.DIM}Obtenha sua chave gratuitamente em: https://aistudio.google.com/app/apikey{ui.Ansi.RESET}")
             try:
