@@ -1,0 +1,6 @@
+{
+  "name": "Atlas Agent",
+  "description": "Agente de programação CLI extremamente leve, com arquitetura modular, segurança estrita e compatibilidade com Linux 32-bit.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

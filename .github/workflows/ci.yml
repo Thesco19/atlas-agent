@@ -1,0 +1,39 @@
+name: Atlas Agent CI
+
+on:
+  push:
+    branches: [ "main", "dev" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Run unit test suite (Zero Dependency)
+      run: |
+        PYTHONPATH=src python -m unittest discover -s tests -v
+
+    - name: Verify CLI Commands
+      run: |
+        PYTHONPATH=src python -m atlas_agent version
+        PYTHONPATH=src python -m atlas_agent config
+        PYTHONPATH=src python -m atlas_agent benchmark
+
+    # Nota de Integridade Arquitetural:
+    # O runner do GitHub Actions opera em arquitetura x86_64 padrão.
+    # O sucesso desta matriz valida a compatibilidade de linguagem e ausência de regressões,
+    # mas a validação física final em hardware x86/i386 legado deve ser executada
+    # em máquina real com MX Linux conforme documentado em docs/32-bit.md.

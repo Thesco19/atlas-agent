@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "atlas-agent"
+version = "0.1.0"
+description = "Extremely lightweight CLI programming agent engineered for 32-bit Linux and low-resource hardware."
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+    { name = "Atlas Agent Contributors" }
+]
+keywords = ["agent", "cli", "gemini", "32-bit", "i386", "low-resource", "lightweight", "coding-agent"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Code Generators",
+    "Topic :: Terminals",
+]
+requires-python = ">=3.8"
+dependencies = [
+    # Zero mandatory external runtime dependencies.
+    # Built strictly using Python Standard Library to ensure 100% compatibility with 32-bit Linux / i386.
+]
+
+[project.optional-dependencies]
+dev = [
+    # Optional tools for development on machines where available
+]
+
+[project.scripts]
+atlas-agent = "atlas_agent.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
